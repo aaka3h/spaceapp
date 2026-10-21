@@ -2338,7 +2338,7 @@ async function updateCommand(args, { root, config, version, platform, stdin, std
         { label: "Run doctor diagnostics (read-only)", value: "doctor" },
         { label: "Repair the runtime (recreate containers from the current configuration)", value: "repair" },
         { label: "Cancel", value: "cancel" }
-      ]);
+      ], { answerKey: "action" });
       if (choice === "cancel") {
         stdout.write("Cancelled. No changes were made.\n");
         return 0;
