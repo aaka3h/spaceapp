@@ -170,6 +170,25 @@ jobs:
           node packages/run-spaceapp/bin/spaceapp.mjs uninstall --purge-data --non-interactive --answers '{"purgeConfirm":"DELETE"}'
           test -z "$(podman ps -a --filter "label=com.docker.compose.project=$project" -q)"
           test -z "$(podman volume ls --format '{{.Name}}' | grep "^${project}_" || true)"
+          echo 'Testing the medium workflows profile'
+          export SPACEAPP_HOME=/tmp/spaceapp-podman-medium-ci
+          node packages/run-spaceapp/bin/spaceapp.mjs install --engine podman --profile medium --non-interactive --no-open
+          wait_ready
+          project=$(node --input-type=module -e 'import { composeProjectName } from "./packages/run-spaceapp/src/index.mjs"; console.log(composeProjectName(process.env.SPACEAPP_HOME))')
+          test "$(podman inspect "${project}-temporal-1" --format '{{.State.Running}}')" = true
+          node packages/run-spaceapp/bin/spaceapp.mjs status
+          node packages/run-spaceapp/bin/spaceapp.mjs doctor
+          node packages/run-spaceapp/bin/spaceapp.mjs down
+          node packages/run-spaceapp/bin/spaceapp.mjs up
+          wait_ready
+          node packages/run-spaceapp/bin/spaceapp.mjs doctor --fix --non-interactive --answers '{"confirm":true}'
+          wait_ready
+          node packages/run-spaceapp/bin/spaceapp.mjs backup
+          printf 'RESTORE\n' | node packages/run-spaceapp/bin/spaceapp.mjs restore
+          wait_ready
+          node packages/run-spaceapp/bin/spaceapp.mjs uninstall --purge-data --non-interactive --answers '{"purgeConfirm":"DELETE"}'
+          test -z "$(podman ps -a --filter "label=com.docker.compose.project=$project" -q)"
+          test -z "$(podman volume ls --format '{{.Name}}' | grep "^${project}_" || true)"
           echo 'Testing a real 1.1.5 to 1.1.6 update and rollback'
           export SPACEAPP_HOME=/tmp/spaceapp-podman-upgrade-ci
           node --input-type=module -e 'import { run } from "./packages/run-spaceapp/src/cli.mjs"; process.exitCode = await run(["install", "--engine", "podman", "--profile", "small", "--non-interactive", "--no-open"], { runtimeVersion: "1.1.5" });'
