@@ -64,7 +64,7 @@ jobs:
     timeout-minutes: 60
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-      SPACEAPP_HOME: ${{ runner.temp }}/spaceapp-podman-ci
+      SPACEAPP_HOME: /tmp/spaceapp-podman-ci
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
