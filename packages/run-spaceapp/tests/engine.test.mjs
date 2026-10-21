@@ -97,6 +97,27 @@ test("Podman workspace overrides use keep-id and shared SELinux relabeling", asy
   assert.throws(() => validateConfig({ ...config, accessMode: "host-root" }), /Podman does not support/);
 });
 
+test("a missing Podman workspace reports the existing-directory requirement", async (t) => {
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-workspace-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const config = { ...createDefaultConfig({ version: "1.1.6", profile: "small" }), engine: "podman" };
+  await assert.rejects(addWorkspace(config, join(root, "missing")), /Workspace path must be an existing directory\./);
+});
+
+test("unattended Podman install requires an explicit confirmation answer", async (t) => {
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-approval-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  let errors = "";
+  const noOp = new Writable({ write(_chunk, _encoding, done) { done(); } });
+  assert.equal(await run(["install", "--engine", "podman", "--profile", "small", "--non-interactive", "--no-open"], {
+    env: { SPACEAPP_HOME: root }, platform: "linux", stdin: Readable.from([]), stdout: noOp,
+    stderr: new Writable({ write(chunk, _encoding, done) { errors += chunk; done(); } }),
+    execute: async () => { throw new Error("Install must stop before executing a command."); },
+    inspectResources: async () => { throw new Error("Install must stop before checking resources."); }
+  }), 1);
+  assert.match(errors, /setup changes require an interactive terminal/);
+});
+
 test("an existing Docker installation refuses an engine switch", async (t) => {
   const root = await mkdtemp(join(fixtureParent, "spaceapp-engine-switch-"));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -153,7 +174,7 @@ test("install rejects Podman host-root before creating state", async (t) => {
   const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-host-root-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const nullStream = new Writable({ write(_c, _e, done) { done(); } });
-  await assert.rejects(run(["install", "--engine", "podman", "--access", "host-root", "--profile", "small", "--non-interactive"], {
+  await assert.rejects(run(["install", "--engine", "podman", "--access", "host-root", "--profile", "small", "--non-interactive", "--answers", '{"confirm":true}'], {
     env: { SPACEAPP_HOME: root }, platform: "linux", stdin: Readable.from([]), stdout: nullStream, stderr: nullStream,
     execute: async () => 0, inspectResources: async () => ({ cpuCount: 8, totalMemoryBytes: 16 * 1024 ** 3, freeDiskBytes: 20 * 1024 ** 3 })
   }), /Podman cannot use --access host-root/);
@@ -194,6 +215,22 @@ test("storage probes use the selected Podman engine and its JSON resource shape"
   assert.ok(specs.every((spec) => spec.command === "podman"));
   assert.deepEqual(specs[0].args, ["info", "--format", "json"]);
   assert.ok(specs.some((spec) => spec.args[0] === "image" && spec.args[1] === "inspect"));
+});
+
+test("Podman unprefixed image IDs count as cached images", async (t) => {
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-cache-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const specs = [];
+  const execute = async (spec, io) => {
+    specs.push(spec);
+    io.stdout?.write(spec.args[0] === "info" ? JSON.stringify({ host: {} }) : "a".repeat(64));
+    return 0;
+  };
+  const plan = await inspectStoragePlan({ root, config: { profile: "small", version: "1.1.6", engine: "podman" },
+    resources: { cpuCount: 8, totalMemoryBytes: 16 * 1024 ** 3, freeDiskBytes: 20 * 1024 ** 3 }, execute, operation: "fresh" });
+  assert.ok(specs.some((spec) => spec.args[0] === "image" && spec.args[1] === "inspect"));
+  assert.deepEqual(plan.missingImages, []);
+  assert.equal(plan.missingImageBytes, 0);
 });
 
 test("doctor reports saved Podman engine facts and provider version", async (t) => {
