@@ -46,7 +46,10 @@ test("Podman constructs every Compose lifecycle action with the fixed provider",
     assert.ok(spec.args.includes(join(root, "compose.workspaces.yml")));
   }
   assert.ok(composeCommand("ensureCheckpointDatabase", root, { engine: "podman" }).args.includes("--wait"));
-  assert.ok(composeCommand("installProvider", root, { engine: "podman", provider: "opencode" }).args.includes("10001:10001"));
+  assert.deepEqual(composeCommand("installProvider", root, { engine: "podman", provider: "opencode" }).args.slice(-7),
+    ["-T", "--user", "10001:10001", "spaceapp-cli", "sh", "-ec", "command -v opencode && opencode --version"]);
+  assert.deepEqual(composeCommand("installProvider", root, { provider: "opencode" }).args.slice(-3),
+    ["node", "/app/deploy/docker/provider-install.mjs", "opencode"]);
   assert.equal(composeCommand("up", root).command, "docker");
 });
 
@@ -113,6 +116,22 @@ test("saved Podman config drives later CLI commands and both selection paths ref
   assert.equal(specs.at(-1).command, "podman");
   await assert.rejects(run(["install", "--engine", "docker"], options), /Docker volumes are not visible to Podman/);
   await assert.rejects(run(["install", "--answers", '{"engine":"docker"}'], options), /Docker volumes are not visible to Podman/);
+});
+
+test("Podman provider install opencode checks its bundled binary", async (t) => {
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-opencode-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await saveConfig(root, { ...createDefaultConfig({ version: "1.1.6", profile: "small" }), engine: "podman" });
+  let output = "";
+  let spec;
+  assert.equal(await run(["provider", "install", "opencode"], {
+    env: { SPACEAPP_HOME: root }, platform: "linux", execute: async (value) => { spec = value; return 0; },
+    stdout: new Writable({ write(chunk, _encoding, done) { output += chunk; done(); } }),
+    stderr: new Writable({ write(_chunk, _encoding, done) { done(); } })
+  }), 0);
+  assert.equal(spec.command, "podman");
+  assert.deepEqual(spec.args.slice(-3), ["sh", "-ec", "command -v opencode && opencode --version"]);
+  assert.match(output, /OpenCode is bundled/);
 });
 
 test("same-version update honors the action answer in unattended mode", async (t) => {
