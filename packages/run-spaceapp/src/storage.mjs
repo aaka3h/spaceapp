@@ -110,7 +110,7 @@ export async function inspectStoragePlan({ root, config, existingConfig, resourc
   let sharedLayersEstimated = false;
   for (const [type, image] of images) {
     const cached = await captureProbe(execute, { command, args: ["image", "inspect", "--format", "{{.Id}}", image] });
-    if (!/^sha256:[a-f0-9]{64}$/.test(cached ?? "")) {
+    if (!/^sha256:[a-f0-9]{64}$/.test(cached ?? "") && !(command === "podman" && /^[a-f0-9]{64}$/.test(cached ?? ""))) {
       missingImages.push(image);
       let reserve = imageReserve[type] ?? GiB;
       if (engine && existingConfig && cachedLayers.size && typeof fetch === "function") {
