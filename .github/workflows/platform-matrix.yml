@@ -141,12 +141,13 @@ jobs:
           echo 'Repairing the stack with doctor --fix'
           node packages/run-spaceapp/bin/spaceapp.mjs doctor --fix --non-interactive --answers '{"confirm":true}'
           wait_ready
-          echo 'Installing the optional opencode provider'
-          node packages/run-spaceapp/bin/spaceapp.mjs provider install opencode
+          echo 'Checking bundled OpenCode and installing an optional provider'
+          project=$(node --input-type=module -e 'import { composeProjectName } from "./packages/run-spaceapp/src/index.mjs"; console.log(composeProjectName(process.env.SPACEAPP_HOME))')
+          podman exec --user 10001:10001 "${project}-spaceapp-cli-1" sh -ec 'command -v opencode; opencode --version'
+          node packages/run-spaceapp/bin/spaceapp.mjs provider install codex
           mkdir -p /tmp/spaceapp-podman-rw /tmp/spaceapp-podman-ro
           node packages/run-spaceapp/bin/spaceapp.mjs workspace add /tmp/spaceapp-podman-rw
           node packages/run-spaceapp/bin/spaceapp.mjs workspace add /tmp/spaceapp-podman-ro --read-only
-          project=$(node --input-type=module -e 'import { composeProjectName } from "./packages/run-spaceapp/src/index.mjs"; console.log(composeProjectName(process.env.SPACEAPP_HOME))')
           rw_target=$(jq -r '.workspaces[] | select(.hostPath == "/tmp/spaceapp-podman-rw") | .containerPath' "$SPACEAPP_HOME/config.json")
           ro_target=$(jq -r '.workspaces[] | select(.hostPath == "/tmp/spaceapp-podman-ro") | .containerPath' "$SPACEAPP_HOME/config.json")
           test "$rw_target" != null && test "$ro_target" != null
