@@ -1821,7 +1821,7 @@ async function workspaceCommand(rawArgs, { root, config, platform, stdin, stdout
     await saveConfig(root, updated);
     await writeRuntimeFiles(root, updated);
     stdout.write(`Workspace registered: ${identity}\n`);
-    if (platform === "linux" && !readOnly) await writeAccessHint(identity, stdout);
+    if (platform === "linux" && !readOnly && containerEngine(updated) === "docker") await writeAccessHint(identity, stdout);
     return applyWorkspaces(updated);
   }
   if (action === "remove") {

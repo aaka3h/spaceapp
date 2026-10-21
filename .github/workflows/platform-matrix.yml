@@ -120,9 +120,25 @@ jobs:
             if curl --fail --silent http://127.0.0.1:4911/readyz | grep -q 'ok'; then break; fi
             sleep 5
           done
-          curl --fail --silent http://127.0.0.1:4911/readyz | grep -q 'ok'
+          readyz=$(curl --fail --silent http://127.0.0.1:4911/readyz)
+          printf '/readyz: %s\n' "$readyz"
+          printf '%s' "$readyz" | grep -q 'ok'
+          mkdir -p /tmp/spaceapp-podman-rw /tmp/spaceapp-podman-ro
+          node packages/run-spaceapp/bin/spaceapp.mjs workspace add /tmp/spaceapp-podman-rw
+          node packages/run-spaceapp/bin/spaceapp.mjs workspace add /tmp/spaceapp-podman-ro --read-only
+          project=$(node --input-type=module -e 'import { composeProjectName } from "./packages/run-spaceapp/src/index.mjs"; console.log(composeProjectName(process.env.SPACEAPP_HOME))')
+          rw_target=$(jq -r '.workspaces[] | select(.hostPath == "/tmp/spaceapp-podman-rw") | .containerPath' "$SPACEAPP_HOME/config.json")
+          ro_target=$(jq -r '.workspaces[] | select(.hostPath == "/tmp/spaceapp-podman-ro") | .containerPath' "$SPACEAPP_HOME/config.json")
+          test "$rw_target" != null && test "$ro_target" != null
+          podman exec --user 10001:10001 "${project}-spaceapp-cli-1" sh -ec 'printf podman-owner-check > "$1/owner-check.txt"' sh "$rw_target"
+          test "$(cat /tmp/spaceapp-podman-rw/owner-check.txt)" = podman-owner-check
+          test "$(stat -c %u /tmp/spaceapp-podman-rw/owner-check.txt)" = "$(id -u)"
+          if podman exec --user 10001:10001 "${project}-spaceapp-cli-1" sh -ec 'touch "$1/must-not-write"' sh "$ro_target"; then
+            echo 'Read-only workspace unexpectedly allowed a write' >&2
+            exit 1
+          fi
+          test ! -e /tmp/spaceapp-podman-ro/must-not-write
           node packages/run-spaceapp/bin/spaceapp.mjs backup
           node packages/run-spaceapp/bin/spaceapp.mjs uninstall --purge-data --non-interactive --answers '{"purgeConfirm":"DELETE"}'
-          project=$(node --input-type=module -e 'import { composeProjectName } from "./packages/run-spaceapp/src/index.mjs"; console.log(composeProjectName(process.env.SPACEAPP_HOME))')
           test -z "$(podman ps -a --filter "label=com.docker.compose.project=$project" -q)"
           test -z "$(podman volume ls --format '{{.Name}}' | grep "^${project}_" || true)"
