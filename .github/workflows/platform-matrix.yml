@@ -170,3 +170,19 @@ jobs:
           node packages/run-spaceapp/bin/spaceapp.mjs uninstall --purge-data --non-interactive --answers '{"purgeConfirm":"DELETE"}'
           test -z "$(podman ps -a --filter "label=com.docker.compose.project=$project" -q)"
           test -z "$(podman volume ls --format '{{.Name}}' | grep "^${project}_" || true)"
+          echo 'Testing a real 1.1.5 to 1.1.6 update and rollback'
+          export SPACEAPP_HOME=/tmp/spaceapp-podman-upgrade-ci
+          node --input-type=module -e 'import { run } from "./packages/run-spaceapp/src/cli.mjs"; process.exitCode = await run(["install", "--engine", "podman", "--profile", "small", "--non-interactive", "--no-open"], { runtimeVersion: "1.1.5" });'
+          wait_ready
+          test "$(jq -r .version "$SPACEAPP_HOME/config.json")" = 1.1.5
+          node packages/run-spaceapp/bin/spaceapp.mjs update --non-interactive --answers '{"confirm":true}'
+          wait_ready
+          test "$(jq -r .version "$SPACEAPP_HOME/config.json")" = 1.1.6
+          test "$(jq -r .previousVersion "$SPACEAPP_HOME/config.json")" = 1.1.5
+          node packages/run-spaceapp/bin/spaceapp.mjs rollback --non-interactive --answers '{"confirm":true}'
+          wait_ready
+          test "$(jq -r .version "$SPACEAPP_HOME/config.json")" = 1.1.5
+          project=$(node --input-type=module -e 'import { composeProjectName } from "./packages/run-spaceapp/src/index.mjs"; console.log(composeProjectName(process.env.SPACEAPP_HOME))')
+          node packages/run-spaceapp/bin/spaceapp.mjs uninstall --purge-data --non-interactive --answers '{"purgeConfirm":"DELETE"}'
+          test -z "$(podman ps -a --filter "label=com.docker.compose.project=$project" -q)"
+          test -z "$(podman volume ls --format '{{.Name}}' | grep "^${project}_" || true)"
