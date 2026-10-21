@@ -1086,7 +1086,7 @@ async function planInteractiveSetup({
   const interactive = interactiveAvailable(stdin);
   const continuation = await readRunOnceContinuation(root, { platform, runtimeVersion });
 
-  if (!interactive && !continuation && !approvedAutomation(stdin) && !(controller?.nonInteractive && requestedEngine === "podman")) {
+  if (!interactive && !continuation && !approvedAutomation(stdin)) {
     stderr.write(
       "SpaceApp setup changes require an interactive terminal (TTY). " +
       "Re-run from a terminal, or continue an approved Windows RunOnce plan.\n"
@@ -2857,7 +2857,7 @@ Options:
   --log-file <file>                 Append all execution logs to specified file
   --local-images               Use preloaded images only (offline/lab; missing images fail)
   --non-interactive                 Run non-interactively, failing on missing input
-  --answers <json|path>             Pre-seed answers; automation requires confirm:true (except explicit Podman install)
+  --answers <json|path>             Pre-seed answers; automation requires confirm:true
 
 Profiles (auto uses CPU, RAM and free disk, then checks engine resources):
   small:  4 CPUs, 7 GiB usable RAM, 6.5 GiB fresh space; SpaceApp + OpenCode.
