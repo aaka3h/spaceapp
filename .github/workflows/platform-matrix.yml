@@ -78,8 +78,14 @@ jobs:
       - name: Install supported Podman and dependencies
         run: |
           eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-          brew install podman docker-compose
+          brew install podman
           echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+          mkdir -p "$HOME/.local/bin"
+          curl --fail --location --silent --show-error \
+            https://github.com/docker/compose/releases/download/v2.38.2/docker-compose-linux-x86_64 \
+            --output "$HOME/.local/bin/docker-compose"
+          chmod 0755 "$HOME/.local/bin/docker-compose"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           npm ci
       - name: Start rootless Podman API socket
         run: |
