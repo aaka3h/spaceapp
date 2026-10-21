@@ -113,16 +113,36 @@ jobs:
           docker-compose version
           podman info --format json | jq '{version: .version.Version, rootless: .host.security.rootless, cgroupVersion: .host.cgroupVersion, socket: .host.remoteSocket.path}'
           podman info --format json | jq '{ociRuntime: .host.ociRuntime.path, conmon: .host.conmon.path}'
-      - name: Install, verify readiness, back up, and purge
+      - name: Exercise rootless Podman lifecycle and purge
         run: |
+          set -euo pipefail
+          wait_ready() {
+            for attempt in $(seq 1 120); do
+              if curl --fail --silent http://127.0.0.1:4911/readyz | grep -q '"ok":true'; then return 0; fi
+              sleep 5
+            done
+            echo 'SpaceApp did not become ready on 127.0.0.1:4911' >&2
+            return 1
+          }
           node packages/run-spaceapp/bin/spaceapp.mjs install --engine podman --profile small --non-interactive --no-open
-          for attempt in $(seq 1 120); do
-            if curl --fail --silent http://127.0.0.1:4911/readyz | grep -q 'ok'; then break; fi
-            sleep 5
-          done
+          wait_ready
           readyz=$(curl --fail --silent http://127.0.0.1:4911/readyz)
           printf '/readyz: %s\n' "$readyz"
-          printf '%s' "$readyz" | grep -q 'ok'
+          printf '%s' "$readyz" | grep -q '"ok":true'
+          echo 'Checking status, logs, and doctor'
+          node packages/run-spaceapp/bin/spaceapp.mjs status
+          node packages/run-spaceapp/bin/spaceapp.mjs logs > /tmp/spaceapp-podman-logs.txt
+          test -s /tmp/spaceapp-podman-logs.txt
+          node packages/run-spaceapp/bin/spaceapp.mjs doctor
+          echo 'Stopping and restarting the stack'
+          node packages/run-spaceapp/bin/spaceapp.mjs down
+          node packages/run-spaceapp/bin/spaceapp.mjs up
+          wait_ready
+          echo 'Repairing the stack with doctor --fix'
+          node packages/run-spaceapp/bin/spaceapp.mjs doctor --fix --non-interactive --answers '{"confirm":true}'
+          wait_ready
+          echo 'Installing the optional opencode provider'
+          node packages/run-spaceapp/bin/spaceapp.mjs provider install opencode
           mkdir -p /tmp/spaceapp-podman-rw /tmp/spaceapp-podman-ro
           node packages/run-spaceapp/bin/spaceapp.mjs workspace add /tmp/spaceapp-podman-rw
           node packages/run-spaceapp/bin/spaceapp.mjs workspace add /tmp/spaceapp-podman-ro --read-only
@@ -138,7 +158,14 @@ jobs:
             exit 1
           fi
           test ! -e /tmp/spaceapp-podman-ro/must-not-write
+          echo 'Backing up and restoring the stack'
           node packages/run-spaceapp/bin/spaceapp.mjs backup
+          printf 'RESTORE\n' | node packages/run-spaceapp/bin/spaceapp.mjs restore
+          wait_ready
+          echo 'Exercising the same-version update repair path'
+          node packages/run-spaceapp/bin/spaceapp.mjs update --non-interactive --answers '{"confirm":true,"action":"repair"}'
+          wait_ready
+          node packages/run-spaceapp/bin/spaceapp.mjs status
           node packages/run-spaceapp/bin/spaceapp.mjs uninstall --purge-data --non-interactive --answers '{"purgeConfirm":"DELETE"}'
           test -z "$(podman ps -a --filter "label=com.docker.compose.project=$project" -q)"
           test -z "$(podman volume ls --format '{{.Name}}' | grep "^${project}_" || true)"
