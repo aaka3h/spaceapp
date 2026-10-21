@@ -96,8 +96,9 @@ jobs:
           # Ubuntu's /usr/bin/pasta is paired with Podman 4.9 and lacks the
           # --map-guest-addr option used by the newer Homebrew Podman.
           test -x "$(brew --prefix)/bin/pasta"
+          test -x "$(brew --prefix)/bin/crun"
           mkdir -p "$HOME/.config/containers"
-          printf '[engine]\nhelper_binaries_dir = ["%s/.local/bin", "%s/bin", "/usr/libexec/podman", "/usr/lib/podman", "/usr/bin"]\n' "$HOME" "$(brew --prefix)" > "$HOME/.config/containers/containers.conf"
+          printf '[engine]\nhelper_binaries_dir = ["%s/.local/bin", "%s/bin", "/usr/libexec/podman", "/usr/lib/podman", "/usr/bin"]\nruntime = "crun"\n[engine.runtimes]\ncrun = ["%s/bin/crun"]\n' "$HOME" "$(brew --prefix)" "$(brew --prefix)" > "$HOME/.config/containers/containers.conf"
           npm ci
       - name: Start rootless Podman API socket
         run: |
