@@ -2077,7 +2077,9 @@ async function providerCommand(rawArgs, { root, config, stdin, stdout, stderr, e
   const provider=args[1];
   // A user's CLIs run in their own container, so an optional CLI goes into that container's volume.
   const service = userId ? `spaceapp-cli-${userSlug(userId)}` : undefined;
-  stdout.write(`Installing optional provider ${provider} into ${userId ? `the private provider volume of ${userId}` : "this installation's private provider volume"}.\n`);
+  stdout.write(provider === "opencode" && containerEngine(config) === "podman"
+    ? "OpenCode is bundled in the CLI image; verifying the installed binary.\n"
+    : `Installing optional provider ${provider} into ${userId ? `the private provider volume of ${userId}` : "this installation's private provider volume"}.\n`);
   // Keep the existing Claude path compatible with older runtime images.
   const action=provider === "claude" ? "installClaude" : "installProvider";
   return execute(composeCommand(action, root, { profile: config.profile, companionsEnabled: config.companionsEnabled, engine: containerEngine(config), provider, service }), { stdin, stdout, stderr });
