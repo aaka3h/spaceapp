@@ -2213,7 +2213,8 @@ async function supportBundleCommand({
   };
 
   if (config?.engine === "podman") {
-    bundle.engine = await podmanFacts({ execute, platform }).catch((error) => ({ error: error.message }));
+    bundle.engine = await podmanFacts({ execute, platform })
+      .then((facts) => ({ name: "podman", ...facts }), (error) => ({ name: "podman", error: error.message }));
   } else {
     const raw = await captureProbe(execute, { command: "docker", args: ["info", "--format", "{{json .}}"] });
     let info;

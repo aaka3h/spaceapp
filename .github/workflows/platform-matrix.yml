@@ -86,6 +86,11 @@ jobs:
             --output "$HOME/.local/bin/docker-compose"
           chmod 0755 "$HOME/.local/bin/docker-compose"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          # Ubuntu's /usr/bin/pasta is paired with Podman 4.9 and lacks the
+          # --map-guest-addr option used by the newer Homebrew Podman.
+          test -x "$(brew --prefix)/bin/pasta"
+          mkdir -p "$HOME/.config/containers"
+          printf '[engine]\nhelper_binaries_dir = ["%s/bin", "/usr/libexec/podman", "/usr/lib/podman", "/usr/bin"]\n' "$(brew --prefix)" > "$HOME/.config/containers/containers.conf"
           npm ci
       - name: Start rootless Podman API socket
         run: |

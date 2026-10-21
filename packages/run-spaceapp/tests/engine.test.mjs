@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
@@ -176,4 +176,27 @@ test("doctor reports saved Podman engine facts and provider version", async (t) 
   assert.match(output, /Rootless: yes/);
   assert.match(output, /Cgroup version: v2/);
   assert.match(output, /Compose provider: Docker Compose version v2\.20\.0/);
+});
+
+test("support bundle includes Podman facts without secret contents", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "spaceapp-podman-bundle-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await saveConfig(root, { ...createDefaultConfig({ version: "1.1.6", profile: "small" }), engine: "podman" });
+  await mkdir(join(root, "secrets"));
+  await writeFile(join(root, "secrets", "provider-key"), "podman-test-secret-marker");
+  const execute = async (spec, io) => {
+    io.stdout?.write(spec.args[0] === "info"
+      ? JSON.stringify({ version: { Version: "5.8.4" }, host: { security: { rootless: true }, cgroupVersion: "v2", remoteSocket: { path: "/tmp/podman.sock" } } })
+      : "Docker Compose version v2.20.0");
+    return 0;
+  };
+  let output = "";
+  const stdout = new Writable({ write(chunk, _encoding, done) { output += chunk; done(); } });
+  assert.equal(await run(["support-bundle"], { env: { SPACEAPP_HOME: root }, platform: "darwin", execute, request: null, stdout,
+    stderr: new Writable({ write(_chunk, _encoding, done) { done(); } }) }), 0);
+  const path = output.match(/SpaceApp support bundle generated: (.+)\n/)?.[1];
+  assert.ok(path);
+  const bundle = JSON.parse(await readFile(path, "utf8"));
+  assert.deepEqual(bundle.engine, { name: "podman", version: "5.8.4", rootless: true, cgroupVersion: "v2", socket: "/tmp/podman.sock", delegated: { cpu: null, memory: null } });
+  assert.ok(!JSON.stringify(bundle).includes("podman-test-secret-marker"));
 });
