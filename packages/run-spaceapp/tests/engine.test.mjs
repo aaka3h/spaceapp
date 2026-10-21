@@ -3,12 +3,16 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 import { Readable, Writable } from "node:stream";
 import { checkPodman, composeProviderSupported, delegatedControllers, detectEngines, podmanFacts, podmanMachineResize, selectedEngine } from "../src/engine.mjs";
 import { addWorkspace, composeCommand, createDefaultConfig, initializeInstallation, prepareInstallation, renderWorkspaceCompose, saveConfig, validateConfig } from "../src/index.mjs";
 import { executeCommand, run } from "../src/cli.mjs";
 import { inspectStoragePlan } from "../src/storage.mjs";
+
+// Windows sandbox temp folders can reject atomic rename; keep stateful fixtures in the writable test directory.
+const fixtureParent = process.platform === "win32" ? fileURLToPath(new URL(".", import.meta.url)) : tmpdir();
 
 test("engine detection handles Docker, Podman, both, and neither", async () => {
   for (const [docker, podman] of [[true, false], [false, true], [true, true], [false, false]]) {
@@ -82,6 +86,7 @@ test("Podman workspace overrides use keep-id and shared SELinux relabeling", asy
       { id: "docs-89abcdef", hostPath: join(tmpdir(), "docs"), containerPath: "/workspaces/docs-89abcdef", readOnly: true }] };
   const compose = renderWorkspaceCompose(config);
   assert.equal((compose.match(/userns_mode: keep-id:uid=10001,gid=10001/g) ?? []).length, 3);
+  assert.equal((compose.match(/user: 0:0/g) ?? []).length, 3);
   assert.equal((compose.match(/selinux: z/g) ?? []).length, 4);
   assert.match(compose, /read_only: true/);
   assert.doesNotMatch(renderWorkspaceCompose({ ...config, engine: "docker" }), /keep-id|selinux: z/);
@@ -90,14 +95,14 @@ test("Podman workspace overrides use keep-id and shared SELinux relabeling", asy
 });
 
 test("an existing Docker installation refuses an engine switch", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "spaceapp-engine-switch-"));
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-engine-switch-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await initializeInstallation(root, { version: "1.1.6", profile: "small" });
   await assert.rejects(prepareInstallation(root, { version: "1.1.6", profile: "small", engine: "podman" }), /Docker volumes are not visible to Podman/);
 });
 
 test("saved Podman config drives later CLI commands and both selection paths refuse a switch", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "spaceapp-engine-cli-"));
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-engine-cli-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const config = { ...createDefaultConfig({ version: "1.1.6", profile: "small" }), engine: "podman" };
   await saveConfig(root, config);
@@ -111,7 +116,7 @@ test("saved Podman config drives later CLI commands and both selection paths ref
 });
 
 test("install rejects Podman host-root before creating state", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "spaceapp-podman-host-root-"));
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-host-root-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const nullStream = new Writable({ write(_c, _e, done) { done(); } });
   await assert.rejects(run(["install", "--engine", "podman", "--access", "host-root", "--profile", "small", "--non-interactive"], {
@@ -139,7 +144,7 @@ test("macOS install preflight inspects the machine and rejects an undersized one
 });
 
 test("storage probes use the selected Podman engine and its JSON resource shape", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "spaceapp-podman-storage-"));
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-storage-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const specs = [];
   const execute = async (spec, io) => {
@@ -158,7 +163,7 @@ test("storage probes use the selected Podman engine and its JSON resource shape"
 });
 
 test("doctor reports saved Podman engine facts and provider version", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "spaceapp-podman-doctor-"));
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-doctor-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await saveConfig(root, { ...createDefaultConfig({ version: "1.1.6", profile: "small" }), engine: "podman" });
   let output = "";
@@ -179,7 +184,7 @@ test("doctor reports saved Podman engine facts and provider version", async (t) 
 });
 
 test("support bundle includes Podman facts without secret contents", async (t) => {
-  const root = await mkdtemp(join(tmpdir(), "spaceapp-podman-bundle-"));
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-bundle-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await saveConfig(root, { ...createDefaultConfig({ version: "1.1.6", profile: "small" }), engine: "podman" });
   await mkdir(join(root, "secrets"));

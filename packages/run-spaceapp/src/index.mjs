@@ -695,7 +695,7 @@ export function renderWorkspaceCompose(config, { cliSandbox = false, root } = {}
     ? ["    volumes:", ...mounts]
     : ["    volumes: []"];
   if (config.users === undefined) {
-    return ["services:", "  spaceapp-core:", ...(podman ? ["    userns_mode: keep-id:uid=10001,gid=10001"] : []), ...service, "  spaceapp-cli:", ...(podman ? ["    userns_mode: keep-id:uid=10001,gid=10001"] : []), ...service, ...(cliSandbox ? sandboxOptions : []), ...(podman ? ["  spaceapp-browser:", "    userns_mode: keep-id:uid=10001,gid=10001"] : []), ""].join("\n");
+    return ["services:", "  spaceapp-core:", ...(podman ? ["    userns_mode: keep-id:uid=10001,gid=10001", "    user: 0:0"] : []), ...service, "  spaceapp-cli:", ...(podman ? ["    userns_mode: keep-id:uid=10001,gid=10001", "    user: 0:0"] : []), ...service, ...(cliSandbox ? sandboxOptions : []), ...(podman ? ["  spaceapp-browser:", "    userns_mode: keep-id:uid=10001,gid=10001", "    user: 0:0"] : []), ""].join("\n");
   }
   // "user enable": accounts are on, and the core starts a USER's CLIs only in that user's own container.
   const users = config.users;
@@ -714,6 +714,7 @@ export function renderWorkspaceCompose(config, { cliSandbox = false, root } = {}
       "    image: ghcr.io/oll4com/spaceapp-cli:${SPACEAPP_IMAGE_TAG}",
       "    restart: unless-stopped",
       ...(podman ? ["    userns_mode: keep-id:uid=10001,gid=10001"] : []),
+      ...(podman ? ["    user: 0:0"] : []),
       "    init: true",
       "    security_opt:",
       "      - no-new-privileges:true",
@@ -740,6 +741,7 @@ export function renderWorkspaceCompose(config, { cliSandbox = false, root } = {}
     "services:",
     "  spaceapp-core:",
     ...(podman ? ["    userns_mode: keep-id:uid=10001,gid=10001"] : []),
+    ...(podman ? ["    user: 0:0"] : []),
     "    environment:",
     '      SPACE_MULTI_USER_ENABLED: "true"',
     "      SPACE_CLI_HOST_SOCKETS_FILE: /etc/spaceapp/cli-hosts.json",
@@ -749,9 +751,10 @@ export function renderWorkspaceCompose(config, { cliSandbox = false, root } = {}
     ...users.map((user) => `      - spaceapp-cli-socket-${userSlug(user.id)}:/run/spaceapp-cli-users/${userSlug(user.id)}`),
     "  spaceapp-cli:",
     ...(podman ? ["    userns_mode: keep-id:uid=10001,gid=10001"] : []),
+    ...(podman ? ["    user: 0:0"] : []),
     ...service,
     ...(cliSandbox ? sandboxOptions : []),
-    ...(podman ? ["  spaceapp-browser:", "    userns_mode: keep-id:uid=10001,gid=10001"] : []),
+    ...(podman ? ["  spaceapp-browser:", "    userns_mode: keep-id:uid=10001,gid=10001", "    user: 0:0"] : []),
     ...userServices,
     ...(users.length > 0 ? ["volumes:"] : []),
     ...users.flatMap((user) => ["cli-state", "memory", "cli-socket", "workspaces"].map((kind) => `  spaceapp-${kind}-${userSlug(user.id)}: {}`)),

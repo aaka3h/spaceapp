@@ -97,8 +97,9 @@ jobs:
           # --map-guest-addr option used by the newer Homebrew Podman.
           test -x "$(brew --prefix)/bin/pasta"
           test -x "$(brew --prefix)/bin/crun"
+          test -x "$(brew --prefix)/bin/conmon"
           mkdir -p "$HOME/.config/containers"
-          printf '[engine]\nhelper_binaries_dir = ["%s/.local/bin", "%s/bin", "/usr/libexec/podman", "/usr/lib/podman", "/usr/bin"]\nruntime = "crun"\n[engine.runtimes]\ncrun = ["%s/bin/crun"]\n' "$HOME" "$(brew --prefix)" "$(brew --prefix)" > "$HOME/.config/containers/containers.conf"
+          printf '[engine]\nhelper_binaries_dir = ["%s/.local/bin", "%s/bin", "/usr/libexec/podman", "/usr/lib/podman", "/usr/bin"]\nconmon_path = ["%s/bin/conmon"]\nruntime = "crun"\n[engine.runtimes]\ncrun = ["%s/bin/crun"]\n' "$HOME" "$(brew --prefix)" "$(brew --prefix)" "$(brew --prefix)" > "$HOME/.config/containers/containers.conf"
           npm ci
       - name: Start rootless Podman API socket
         run: |
@@ -111,6 +112,7 @@ jobs:
           aardvark-dns --version
           docker-compose version
           podman info --format json | jq '{version: .version.Version, rootless: .host.security.rootless, cgroupVersion: .host.cgroupVersion, socket: .host.remoteSocket.path}'
+          podman info --format json | jq '{ociRuntime: .host.ociRuntime.path, conmon: .host.conmon.path}'
       - name: Install, verify readiness, back up, and purge
         run: |
           node packages/run-spaceapp/bin/spaceapp.mjs install --engine podman --profile small --non-interactive --no-open
