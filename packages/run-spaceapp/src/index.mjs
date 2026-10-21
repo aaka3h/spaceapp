@@ -535,7 +535,10 @@ export async function addWorkspace(config, hostPath, { readOnly = false, userId 
   }
   const absolutePath = resolve(hostPath);
   if (config.engine === "podman") {
-    const canonicalPath = await realpath(absolutePath);
+    const canonicalPath = await realpath(absolutePath).catch((error) => {
+      if (error?.code === "ENOENT") throw new Error("Workspace path must be an existing directory.");
+      throw error;
+    });
     const home = await realpath(homedir()).catch(() => resolve(homedir()));
     const protectedTrees = ["/bin", "/boot", "/dev", "/etc", "/lib", "/lib64", "/proc", "/root", "/run", "/sbin", "/sys", "/usr", "/var"];
     const protectedRoots = ["/", "/home", "/media", "/mnt", "/opt", "/srv", "/tmp"];
@@ -977,12 +980,14 @@ export async function prepareInstallation(root, {
     ? undefined
     : resolveInstallProfile(profile, profile === "auto" ? await inspectSystemResources(root) : totalmem());
   let config;
+  let existing = true;
   try {
     config = await loadConfig(root);
   } catch (error) {
     if (error?.code !== "ENOENT") {
       throw error;
     }
+    existing = false;
     config = createDefaultConfig({
       version,
       profile: resolvedProfile ?? "light",
@@ -990,7 +995,7 @@ export async function prepareInstallation(root, {
       companionsEnabled
     });
   }
-  if (engine !== undefined && engine !== (config.engine ?? "docker") && await readFile(join(root, "config.json"), "utf8").then(() => true, () => false)) {
+  if (engine !== undefined && existing && engine !== (config.engine ?? "docker")) {
     throw new Error("Cannot switch container engines on an existing installation: Docker volumes are not visible to Podman. Run backup, uninstall, then restore on the new engine.");
   }
   if (engine !== undefined) config = { ...config, engine };
