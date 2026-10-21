@@ -115,6 +115,21 @@ test("saved Podman config drives later CLI commands and both selection paths ref
   await assert.rejects(run(["install", "--answers", '{"engine":"docker"}'], options), /Docker volumes are not visible to Podman/);
 });
 
+test("same-version update honors the action answer in unattended mode", async (t) => {
+  const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-update-choice-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await saveConfig(root, { ...createDefaultConfig({ version: "1.1.6", profile: "small" }), engine: "podman" });
+  let output = "";
+  const stdout = new Writable({ write(chunk, _encoding, done) { output += chunk; done(); } });
+  assert.equal(await run(["update", "--non-interactive", "--answers", '{"confirm":true,"action":"cancel"}'], {
+    env: { SPACEAPP_HOME: root }, platform: "linux", runtimeVersion: "1.1.6", stdin: Readable.from([]), stdout,
+    stderr: new Writable({ write(_chunk, _encoding, done) { done(); } }),
+    execute: async () => { throw new Error("A cancelled update must not run container commands."); }
+  }), 0);
+  assert.match(output, /Select 1-3 \[1\]: cancel/);
+  assert.match(output, /Cancelled\. No changes were made/);
+});
+
 test("install rejects Podman host-root before creating state", async (t) => {
   const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-host-root-"));
   t.after(() => rm(root, { recursive: true, force: true }));
