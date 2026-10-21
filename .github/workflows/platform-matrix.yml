@@ -85,12 +85,19 @@ jobs:
             https://github.com/docker/compose/releases/download/v2.38.2/docker-compose-linux-x86_64 \
             --output "$HOME/.local/bin/docker-compose"
           chmod 0755 "$HOME/.local/bin/docker-compose"
+          # Podman 6 needs netavark/aardvark 2; the runner's apt copies are 1.x.
+          for helper in netavark aardvark-dns; do
+            curl --fail --location --silent --show-error \
+              "https://github.com/containers/$helper/releases/download/v2.1.0/$helper.gz" \
+              | gzip -dc > "$HOME/.local/bin/$helper"
+            chmod 0755 "$HOME/.local/bin/$helper"
+          done
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           # Ubuntu's /usr/bin/pasta is paired with Podman 4.9 and lacks the
           # --map-guest-addr option used by the newer Homebrew Podman.
           test -x "$(brew --prefix)/bin/pasta"
           mkdir -p "$HOME/.config/containers"
-          printf '[engine]\nhelper_binaries_dir = ["%s/bin", "/usr/libexec/podman", "/usr/lib/podman", "/usr/bin"]\n' "$(brew --prefix)" > "$HOME/.config/containers/containers.conf"
+          printf '[engine]\nhelper_binaries_dir = ["%s/.local/bin", "%s/bin", "/usr/libexec/podman", "/usr/lib/podman", "/usr/bin"]\n' "$HOME" "$(brew --prefix)" > "$HOME/.config/containers/containers.conf"
           npm ci
       - name: Start rootless Podman API socket
         run: |
@@ -99,6 +106,8 @@ jobs:
           systemctl --user daemon-reload
           systemctl --user enable --now podman.socket
           podman --version
+          netavark --version
+          aardvark-dns --version
           docker-compose version
           podman info --format json | jq '{version: .version.Version, rootless: .host.security.rootless, cgroupVersion: .host.cgroupVersion, socket: .host.remoteSocket.path}'
       - name: Install, verify readiness, back up, and purge
