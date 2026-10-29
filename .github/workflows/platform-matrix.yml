@@ -86,7 +86,7 @@ jobs:
           export PATH="/opt/podman/bin:$PATH"
           echo "/opt/podman/bin" >> "$GITHUB_PATH"
           podman --version
-          podman machine init --cpus 4 --memory 8192 --disk-size 20 --now --update-connection=true
+          podman machine init --cpus 4 --memory 8192 --disk-size 20 --now
           podman machine inspect --format json
           podman info --format json
           docker-compose version
