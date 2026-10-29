@@ -191,6 +191,7 @@ test("macOS machine sizing reports an exact resize command", () => {
 
 test("macOS install preflight inspects the machine and rejects an undersized one", async () => {
   const execute = async (spec, io) => {
+    if (spec.args[0] === "machine") assert.deepEqual(spec.args, ["machine", "inspect"]);
     const output = spec.args[0] === "info"
       ? { version: { Version: "5.8.4" }, host: { cgroupVersion: "v2", security: { rootless: true }, remoteSocket: { path: "/tmp/podman.sock" } } }
       : spec.args[0] === "machine" ? [{ Resources: { CPUs: 2, Memory: 2048, DiskSize: 5 } }] : "Docker Compose version v2.20.0";
