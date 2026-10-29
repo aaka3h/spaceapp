@@ -77,7 +77,13 @@ jobs:
       - name: Start a rootless Podman machine
         run: |
           sysctl kern.hv_support
-          brew install docker-compose
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl --fail --location --silent --show-error \
+            https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-darwin-x86_64 \
+            --output "$RUNNER_TEMP/bin/docker-compose"
+          chmod +x "$RUNNER_TEMP/bin/docker-compose"
+          export PATH="$RUNNER_TEMP/bin:$PATH"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
           curl --fail --location --silent --show-error \
             https://github.com/containers/podman/releases/download/v5.8.9/podman-installer-macos-amd64.pkg \
             --output "$RUNNER_TEMP/podman.pkg"
