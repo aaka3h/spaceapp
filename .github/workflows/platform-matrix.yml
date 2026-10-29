@@ -58,6 +58,45 @@ jobs:
       - run: npm run pack:dry-run -w run-spaceapp
       - run: node packages/run-spaceapp/bin/spaceapp.mjs --version
 
+  macos-podman-machine:
+    name: Rootless Podman machine / macos-15-intel (experimental)
+    if: github.ref == 'refs/heads/test/macos-podman-machine-63-20261029'
+    runs-on: macos-15-intel
+    timeout-minutes: 60
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      SPACEAPP_HOME: ${{ runner.temp }}/spaceapp-podman-machine
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.0"
+      - name: Start a rootless Podman machine
+        run: |
+          brew install podman docker-compose
+          sysctl kern.hv_support || true
+          podman machine init --cpus 4 --memory 8192 --disk-size 20 --now --update-connection=true
+          podman machine inspect --format json
+          podman info --format json
+          docker-compose version
+      - name: Exercise small profile on the Podman machine
+        run: |
+          set -euo pipefail
+          node packages/run-spaceapp/bin/spaceapp.mjs install --engine podman --profile small --non-interactive --answers '{"confirm":true}' --no-open
+          ready=0
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:4911/readyz | grep -q '"ok":true'; then ready=1; break; fi
+            sleep 5
+          done
+          test "$ready" = 1
+          node packages/run-spaceapp/bin/spaceapp.mjs doctor
+          project=$(node --input-type=module -e 'import { composeProjectName } from "./packages/run-spaceapp/src/index.mjs"; console.log(composeProjectName(process.env.SPACEAPP_HOME))')
+          node packages/run-spaceapp/bin/spaceapp.mjs uninstall --purge-data --non-interactive --answers '{"purgeConfirm":"DELETE"}'
+          test -z "$(podman ps -a --filter "label=com.docker.compose.project=$project" -q)"
+          test -z "$(podman volume ls --format '{{.Name}}' | grep "^${project}_" || true)"
+
   rootless-podman:
     name: Rootless Podman / ubuntu-latest
     runs-on: ubuntu-latest
