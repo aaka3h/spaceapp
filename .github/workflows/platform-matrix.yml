@@ -76,8 +76,14 @@ jobs:
         run: echo "SPACEAPP_HOME=$RUNNER_TEMP/spaceapp-podman-machine" >> "$GITHUB_ENV"
       - name: Start a rootless Podman machine
         run: |
-          brew install podman docker-compose
-          sysctl kern.hv_support || true
+          sysctl kern.hv_support
+          brew install docker-compose
+          curl --fail --location --silent --show-error \
+            https://github.com/containers/podman/releases/download/v5.8.9/podman-installer-macos-amd64.pkg \
+            --output "$RUNNER_TEMP/podman.pkg"
+          pkgutil --check-signature "$RUNNER_TEMP/podman.pkg"
+          sudo installer -pkg "$RUNNER_TEMP/podman.pkg" -target /
+          podman --version
           podman machine init --cpus 4 --memory 8192 --disk-size 20 --now --update-connection=true
           podman machine inspect --format json
           podman info --format json
