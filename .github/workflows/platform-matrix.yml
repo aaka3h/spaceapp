@@ -65,7 +65,6 @@ jobs:
     timeout-minutes: 60
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-      SPACEAPP_HOME: ${{ runner.temp }}/spaceapp-podman-machine
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -73,6 +72,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22.23.0"
+      - name: Choose isolated installation directory
+        run: echo "SPACEAPP_HOME=$RUNNER_TEMP/spaceapp-podman-machine" >> "$GITHUB_ENV"
       - name: Start a rootless Podman machine
         run: |
           brew install podman docker-compose
