@@ -184,13 +184,16 @@ test("macOS machine sizing reports an exact resize command", () => {
   assert.equal(podmanMachineResize([{ CPUs: 2, Memory: 2048, DiskSize: 5 }], "small"),
     "podman machine stop && podman machine set --cpus 4 --memory 7168 --disk-size 7 && podman machine start");
   assert.equal(podmanMachineResize([{ CPUs: 8, Memory: 16384, DiskSize: 20 }], "small"), null);
+  assert.equal(podmanMachineResize([{ Resources: { CPUs: 2, Memory: 2048, DiskSize: 5 } }], "small"),
+    "podman machine stop && podman machine set --cpus 4 --memory 7168 --disk-size 7 && podman machine start");
+  assert.equal(podmanMachineResize([{ Resources: { CPUs: 8, Memory: 16384, DiskSize: 20 } }], "small"), null);
 });
 
 test("macOS install preflight inspects the machine and rejects an undersized one", async () => {
   const execute = async (spec, io) => {
     const output = spec.args[0] === "info"
       ? { version: { Version: "5.8.4" }, host: { cgroupVersion: "v2", security: { rootless: true }, remoteSocket: { path: "/tmp/podman.sock" } } }
-      : spec.args[0] === "machine" ? [{ CPUs: 2, Memory: 2048, DiskSize: 5 }] : "Docker Compose version v2.20.0";
+      : spec.args[0] === "machine" ? [{ Resources: { CPUs: 2, Memory: 2048, DiskSize: 5 } }] : "Docker Compose version v2.20.0";
     io.stdout?.write(typeof output === "string" ? output : JSON.stringify(output));
     return 0;
   };
