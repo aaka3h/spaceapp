@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 import { Readable, Writable } from "node:stream";
 import { checkPodman, composeProviderSupported, delegatedControllers, detectEngines, podmanFacts, podmanMachineResize, selectedEngine } from "../src/engine.mjs";
-import { addWorkspace, commitInstallation, composeCommand, createDefaultConfig, initializeInstallation, prepareInstallation, renderWorkspaceCompose, saveConfig, userNamespacesUsable, validateConfig } from "../src/index.mjs";
+import { addWorkspace, commitInstallation, composeCommand, createDefaultConfig, initializeInstallation, prepareInstallation, renderWorkspaceCompose, saveConfig, validateConfig } from "../src/index.mjs";
 import { executeCommand, run } from "../src/cli.mjs";
 import { inspectStoragePlan } from "../src/storage.mjs";
 
@@ -97,7 +97,7 @@ test("Podman workspace overrides use keep-id and shared SELinux relabeling", asy
   assert.throws(() => validateConfig({ ...config, accessMode: "host-root" }), /Podman does not support/);
 });
 
-test("staged Podman Compose uses the installed seccomp profile path", async (t) => {
+test("Podman Compose keeps the engine's default seccomp profile", async (t) => {
   const fixture = await mkdtemp(join(fixtureParent, "spaceapp-podman-stage-"));
   t.after(() => rm(fixture, { recursive: true, force: true }));
   const projectRoot = join(fixture, "installation");
@@ -106,8 +106,7 @@ test("staged Podman Compose uses the installed seccomp profile path", async (t) 
   await commitInstallation(stagedRoot, config, { projectRoot, persistConfig: false });
   const compose = await readFile(join(stagedRoot, "compose.workspaces.yml"), "utf8");
   const profilePath = join(projectRoot, "seccomp-cli.json");
-  assert.equal(compose.includes(`seccomp=${profilePath}`), await userNamespacesUsable());
-  assert.equal(compose.includes(`seccomp=${join(stagedRoot, "seccomp-cli.json")}`), false);
+  assert.doesNotMatch(compose, /seccomp=|apparmor=/);
   assert.match(await readFile(profilePath, "utf8"), /"unshare"/);
 });
 
