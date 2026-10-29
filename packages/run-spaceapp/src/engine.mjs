@@ -67,11 +67,12 @@ export function podmanMachineResize(machine, profile) {
   const needs = PROFILE_REQUIREMENTS[profile];
   const actual = Array.isArray(machine) ? machine[0] : machine;
   if (!needs || !actual) throw new Error("Unable to inspect the Podman machine.");
-  const cpu = Math.max(needs.cpuCount, Number(actual.CPUs ?? actual.cpus));
-  const memory = Math.max(Math.ceil(needs.memoryBytes / 1024 ** 2), Number(actual.Memory ?? actual.memory));
-  const disk = Math.max(Math.ceil(needs.freshDiskBytes / 1024 ** 3), Number(actual.DiskSize ?? actual.diskSize));
+  const resources = actual.Resources ?? actual.resources ?? actual;
+  const cpu = Math.max(needs.cpuCount, Number(resources.CPUs ?? resources.cpus));
+  const memory = Math.max(Math.ceil(needs.memoryBytes / 1024 ** 2), Number(resources.Memory ?? resources.memory));
+  const disk = Math.max(Math.ceil(needs.freshDiskBytes / 1024 ** 3), Number(resources.DiskSize ?? resources.diskSize));
   if ([cpu, memory, disk].some((value) => !Number.isFinite(value))) throw new Error("Podman machine inspect omitted CPU, memory, or disk size.");
-  return cpu > Number(actual.CPUs ?? actual.cpus) || memory > Number(actual.Memory ?? actual.memory) || disk > Number(actual.DiskSize ?? actual.diskSize)
+  return cpu > Number(resources.CPUs ?? resources.cpus) || memory > Number(resources.Memory ?? resources.memory) || disk > Number(resources.DiskSize ?? resources.diskSize)
     ? `podman machine stop && podman machine set --cpus ${cpu} --memory ${memory} --disk-size ${disk} && podman machine start`
     : null;
 }
