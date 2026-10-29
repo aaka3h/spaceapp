@@ -95,7 +95,7 @@ export async function checkPodman({ execute, platform, profile, read = readFile,
   const provider = await captureProbe(execute, { command: "podman", args: ["compose", "version"], env: { PODMAN_COMPOSE_PROVIDER: "docker-compose" } });
   if (!composeProviderSupported(provider)) throw new Error("Podman compose needs docker-compose 2.20+ for depends_on.required. Install it and set PODMAN_COMPOSE_PROVIDER=docker-compose.");
   if (platform === "darwin") {
-    const raw = await captureProbe(execute, { command: "podman", args: ["machine", "inspect", "--format", "json"] });
+    const raw = await captureProbe(execute, { command: "podman", args: ["machine", "inspect"] });
     let machine;
     try { machine = JSON.parse(raw); } catch { throw new Error("Run podman machine init && podman machine start before installing SpaceApp."); }
     const resize = podmanMachineResize(machine, profile);
