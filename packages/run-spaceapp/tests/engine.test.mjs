@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 import { Readable, Writable } from "node:stream";
 import { checkPodman, composeProviderSupported, delegatedControllers, detectEngines, podmanFacts, podmanMachineResize, selectedEngine } from "../src/engine.mjs";
-import { addWorkspace, composeCommand, createDefaultConfig, initializeInstallation, prepareInstallation, renderWorkspaceCompose, saveConfig, validateConfig } from "../src/index.mjs";
+import { addWorkspace, commitInstallation, composeCommand, createDefaultConfig, initializeInstallation, prepareInstallation, renderWorkspaceCompose, saveConfig, validateConfig } from "../src/index.mjs";
 import { executeCommand, run } from "../src/cli.mjs";
 import { inspectStoragePlan } from "../src/storage.mjs";
 
@@ -97,6 +97,19 @@ test("Podman workspace overrides use keep-id and shared SELinux relabeling", asy
   assert.throws(() => validateConfig({ ...config, accessMode: "host-root" }), /Podman does not support/);
 });
 
+test("Podman Compose keeps the engine's default seccomp profile", async (t) => {
+  const fixture = await mkdtemp(join(fixtureParent, "spaceapp-podman-stage-"));
+  t.after(() => rm(fixture, { recursive: true, force: true }));
+  const projectRoot = join(fixture, "installation");
+  const stagedRoot = join(fixture, "staged");
+  const config = { ...createDefaultConfig({ version: "1.1.6", profile: "small" }), engine: "podman" };
+  await commitInstallation(stagedRoot, config, { projectRoot, persistConfig: false });
+  const compose = await readFile(join(stagedRoot, "compose.workspaces.yml"), "utf8");
+  const profilePath = join(projectRoot, "seccomp-cli.json");
+  assert.doesNotMatch(compose, /seccomp=|apparmor=/);
+  assert.match(await readFile(profilePath, "utf8"), /"unshare"/);
+});
+
 test("a missing Podman workspace reports the existing-directory requirement", async (t) => {
   const root = await mkdtemp(join(fixtureParent, "spaceapp-podman-workspace-"));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -184,13 +197,17 @@ test("macOS machine sizing reports an exact resize command", () => {
   assert.equal(podmanMachineResize([{ CPUs: 2, Memory: 2048, DiskSize: 5 }], "small"),
     "podman machine stop && podman machine set --cpus 4 --memory 7168 --disk-size 7 && podman machine start");
   assert.equal(podmanMachineResize([{ CPUs: 8, Memory: 16384, DiskSize: 20 }], "small"), null);
+  assert.equal(podmanMachineResize([{ Resources: { CPUs: 2, Memory: 2048, DiskSize: 5 } }], "small"),
+    "podman machine stop && podman machine set --cpus 4 --memory 7168 --disk-size 7 && podman machine start");
+  assert.equal(podmanMachineResize([{ Resources: { CPUs: 8, Memory: 16384, DiskSize: 20 } }], "small"), null);
 });
 
 test("macOS install preflight inspects the machine and rejects an undersized one", async () => {
   const execute = async (spec, io) => {
+    if (spec.args[0] === "machine") assert.deepEqual(spec.args, ["machine", "inspect"]);
     const output = spec.args[0] === "info"
       ? { version: { Version: "5.8.4" }, host: { cgroupVersion: "v2", security: { rootless: true }, remoteSocket: { path: "/tmp/podman.sock" } } }
-      : spec.args[0] === "machine" ? [{ CPUs: 2, Memory: 2048, DiskSize: 5 }] : "Docker Compose version v2.20.0";
+      : spec.args[0] === "machine" ? [{ Resources: { CPUs: 2, Memory: 2048, DiskSize: 5 } }] : "Docker Compose version v2.20.0";
     io.stdout?.write(typeof output === "string" ? output : JSON.stringify(output));
     return 0;
   };
