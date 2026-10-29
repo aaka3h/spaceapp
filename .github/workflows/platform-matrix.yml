@@ -21,6 +21,7 @@ concurrency:
 jobs:
   launcher:
     name: Launcher / ${{ matrix.os }} / Node ${{ matrix.node }}
+    if: github.ref != 'refs/heads/test/macos-podman-machine-63-20261029'
     strategy:
       fail-fast: false
       matrix:
@@ -93,7 +94,7 @@ jobs:
           echo "/opt/podman/bin" >> "$GITHUB_PATH"
           podman --version
           podman machine init --cpus 4 --memory 8192 --disk-size 20 --now
-          podman machine inspect --format json
+          podman machine inspect
           podman info --format json
           docker-compose version
       - name: Exercise small profile on the Podman machine
@@ -114,6 +115,7 @@ jobs:
 
   rootless-podman:
     name: Rootless Podman / ubuntu-latest
+    if: github.ref != 'refs/heads/test/macos-podman-machine-63-20261029'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
